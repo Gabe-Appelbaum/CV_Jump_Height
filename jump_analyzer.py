@@ -123,7 +123,7 @@ def smooth_series(values, window=5):
     return out
 
 
-def detect_jump(foot_ys, fps, ground_pct=85, threshold_frac=0.04, min_frames=4):
+def detect_jump(foot_ys, fps, timestamps=None, ground_pct=85, threshold_frac=0.04, min_frames=4):
     """
     Find the primary jump (longest airborne segment) in the foot y time series.
 
@@ -157,7 +157,10 @@ def detect_jump(foot_ys, fps, ground_pct=85, threshold_frac=0.04, min_frames=4):
         return None
 
     t0, t1        = max(segments, key=lambda s: s[1] - s[0])
-    flight_time   = (t1 - t0) / fps
+    if timestamps is not None:
+        flight_time = timestamps[t1] - timestamps[t0]
+    else:
+        flight_time = (t1 - t0) / fps
     jump_height_m = 9.81 * flight_time**2 / 8.0
     peak_frame    = (t0 + t1) // 2
 
@@ -243,6 +246,7 @@ def analyze_video(video_path: str, output_path: str | None = None) -> dict:
     # ── Pass 1: extract pose landmarks per frame ──────────────────────────────
     raw_lm      = []   # list of pose_landmarks (list[NormalizedLandmark]) or None
     raw_foot_ys = []
+    timestamps  = []   # actual per-frame timestamps in seconds (from container)
 
     options = PoseLandmarkerOptions(
         base_options=mp_python.BaseOptions(model_asset_path=str(MODEL_PATH)),
@@ -259,6 +263,7 @@ def analyze_video(video_path: str, output_path: str | None = None) -> dict:
             ret, frame = cap.read()
             if not ret:
                 break
+            timestamps.append(cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0)
             rgb      = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
             result   = detector.detect(mp_image)
@@ -276,7 +281,7 @@ def analyze_video(video_path: str, output_path: str | None = None) -> dict:
 
     # ── Flight detection ──────────────────────────────────────────────────────
     smoothed = smooth_series(raw_foot_ys, window=5)
-    jump     = detect_jump(smoothed, fps)
+    jump     = detect_jump(smoothed, fps, timestamps=timestamps)
 
     if jump:
         t0, t1, flight_time, jump_height_m, peak_frame = jump
