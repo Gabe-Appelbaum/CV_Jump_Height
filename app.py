@@ -5,6 +5,17 @@ Run with:
     streamlit run app.py
 """
 
+# Fix libgthread-2.0.so.0 missing on GLib 2.68+ (merged into libglib-2.0.so.0).
+# setup.sh handles this at boot; this is a fallback in case it didn't run.
+import os as _os, subprocess as _sp
+for _d in ["/usr/lib/x86_64-linux-gnu", "/usr/lib/aarch64-linux-gnu"]:
+    _glib = f"{_d}/libglib-2.0.so.0"
+    _gthread = f"{_d}/libgthread-2.0.so.0"
+    if _os.path.exists(_glib) and not _os.path.exists(_gthread):
+        _sp.run(["sudo", "ln", "-sf", _glib, _gthread], check=False)
+        break
+del _os, _sp, _d, _glib, _gthread
+
 import base64
 import tempfile
 from pathlib import Path
