@@ -1,4 +1,4 @@
-run = "python3 -m pip install -r requirements.txt -q && python3 webapp.py"
+run = "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -q && .venv/bin/python webapp.py"
 entrypoint = "webapp.py"
 
 [[ports]]
