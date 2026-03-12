@@ -5,6 +5,39 @@ Run with:
     streamlit run app.py
 """
 
+# Streamlit Cloud (Debian Trixie): libgthread-2.0.so.0 was merged into libglib-2.0.so.0
+# in GLib 2.68+. Create a symlink in /tmp (no sudo needed) and prepend /tmp to
+# LD_LIBRARY_PATH so the dynamic linker finds it when cv2 is imported below.
+import os as _os
+print("[libgthread-fix] Starting libgthread fix...", flush=True)
+_candidates = [
+    "/usr/lib/x86_64-linux-gnu/libglib-2.0.so.0",
+    "/usr/lib/aarch64-linux-gnu/libglib-2.0.so.0",
+    "/usr/lib/libglib-2.0.so.0",
+]
+print(f"[libgthread-fix] Checking candidates: {_candidates}", flush=True)
+_glib = next((p for p in _candidates if _os.path.exists(p)), None)
+print(f"[libgthread-fix] libglib found at: {_glib}", flush=True)
+if _glib:
+    _system_link = _os.path.dirname(_glib) + "/libgthread-2.0.so.0"
+    print(f"[libgthread-fix] libgthread in system dir exists: {_os.path.exists(_system_link)}", flush=True)
+    if not _os.path.exists(_system_link):
+        _link = "/tmp/libgthread-2.0.so.0"
+        try:
+            if not _os.path.exists(_link):
+                _os.symlink(_glib, _link)
+                print(f"[libgthread-fix] Created symlink: {_link} -> {_glib}", flush=True)
+            else:
+                print(f"[libgthread-fix] Symlink already exists: {_link}", flush=True)
+            _os.environ["LD_LIBRARY_PATH"] = "/tmp:" + _os.environ.get("LD_LIBRARY_PATH", "")
+            print(f"[libgthread-fix] LD_LIBRARY_PATH set to: {_os.environ['LD_LIBRARY_PATH']}", flush=True)
+        except Exception as _e:
+            print(f"[libgthread-fix] ERROR: {_e}", flush=True)
+else:
+    print("[libgthread-fix] WARNING: libglib-2.0.so.0 not found in any candidate path", flush=True)
+del _os, _candidates, _glib
+print("[libgthread-fix] Done. Proceeding to import cv2...", flush=True)
+
 import base64
 import tempfile
 from pathlib import Path

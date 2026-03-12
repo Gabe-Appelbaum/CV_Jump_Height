@@ -19,32 +19,43 @@ After deploying the FPS fix, the app fails at startup on Streamlit Cloud with:
 ImportError: libgthread-2.0.so.0: cannot open shared object file: No such file or directory
 ```
 
-**Root cause:** Streamlit Cloud runs **Debian Trixie**. In GLib 2.68+, `libgthread-2.0.so.0`
-was merged into `libglib-2.0.so.0` and no longer exists as a separate file. MediaPipe's binary
-wheels still link against the old soname.
+**Root cause:** Streamlit Cloud runs **Debian Trixie** with **Python 3.14**. In GLib 2.68+,
+`libgthread-2.0.so.0` was merged into `libglib-2.0.so.0` and no longer exists as a separate
+file. MediaPipe/cv2 wheels still link against the old soname.
+
+**Key finding:** `libglib-2.0.so.0` DOES exist on the system. We just need to make
+`libgthread-2.0.so.0` findable under that name before `import cv2` runs.
 
 #### What was tried and why it failed
 
 | Attempt | What it did | Why it failed |
 |---------|-------------|---------------|
-| Add `libglib2.0-0` to `packages.txt` | Tried to install glib via apt | Debian Bullseye version conflicts with Trixie's `libffi8`/`libpcre3` |
-| `setup.sh` symlink | Linked `libglib-2.0.so.0` → `libgthread-2.0.so.0` | File committed as `100644` (not executable); Streamlit Cloud silently skipped it |
-| Fix `setup.sh` executable bit + Python `sudo ln` fallback | Made setup.sh runnable; fallback runs before `import cv2` | `sudo` fails silently during app execution (only works during build phase) |
+| `libglib2.0-0` in `packages.txt` | Tried apt install | Debian/Ubuntu source conflict — `libffi7` not installable on Trixie |
+| `setup.sh` symlink | Symlinked libglib → libgthread | File was `100644` (not executable); Streamlit Cloud skipped it |
+| Fix `setup.sh` executable + Python `sudo ln` fallback | Made setup.sh runnable; Python fallback with sudo | `sudo` silently fails during app execution (only works during build) |
+| `Dockerfile` with Bullseye base image | Use Debian 11 where libgthread exists natively | Dockerfile support is paid/enterprise tier only — free tier ignores it (still used Python 3.14) |
 
 ---
 
-## Current Fix Plan
+## Current Fix (in app.py)
 
-**Use a `Dockerfile` with `python:3.11-slim-bullseye` (Debian 11).**
+**Approach:** Create `/tmp/libgthread-2.0.so.0` as a symlink to `libglib-2.0.so.0`, then
+prepend `/tmp` to `LD_LIBRARY_PATH` before `import cv2`.
 
-On Debian Bullseye, `libglib2.0-0` version 2.66 ships `libgthread-2.0.so.0` as a real file.
-No symlinks, no runtime hacks — the library simply exists.
+- `/tmp` is always world-writable — no sudo needed
+- `os.symlink()` creates the link without elevated permissions
+- On Linux, `dlopen()` re-reads `LD_LIBRARY_PATH` from the live process environment, so
+  setting it in `os.environ` before `import cv2` causes the dynamic linker to find the symlink
 
-Streamlit Cloud uses a `Dockerfile` if one is present at the repo root, giving full
-environment control.
+The fix block at the top of `app.py` includes print statements at each step so the logs
+will show exactly what happened if it fails again.
 
-**Changes:**
-1. Add `Dockerfile` at the repo root — uses Bullseye base, installs `libgl1` + `libglib2.0-0`
-2. Remove the `sudo ln` hack block from `app.py` (lines 8–17) — no longer needed
-
-`packages.txt` and `setup.sh` are ignored when a Dockerfile is present; leave them as-is.
+**Expected log output on success:**
+```
+[libgthread-fix] Starting libgthread fix...
+[libgthread-fix] libglib found at: /usr/lib/x86_64-linux-gnu/libglib-2.0.so.0
+[libgthread-fix] libgthread in system dir exists: False
+[libgthread-fix] Created symlink: /tmp/libgthread-2.0.so.0 -> /usr/lib/x86_64-linux-gnu/libglib-2.0.so.0
+[libgthread-fix] LD_LIBRARY_PATH set to: /tmp:...
+[libgthread-fix] Done. Proceeding to import cv2...
+```
