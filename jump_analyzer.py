@@ -241,7 +241,6 @@ def analyze_video(video_path: str, output_path: str | None = None) -> dict:
     print(f"        {width}×{height}  |  {fps:.2f} fps  |  ~{total} frames")
 
     # ── Pass 1: extract pose landmarks per frame ──────────────────────────────
-    frames      = []
     raw_lm      = []   # list of pose_landmarks (list[NormalizedLandmark]) or None
     raw_foot_ys = []
 
@@ -260,7 +259,6 @@ def analyze_video(video_path: str, output_path: str | None = None) -> dict:
             ret, frame = cap.read()
             if not ret:
                 break
-            frames.append(frame)
             rgb      = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
             result   = detector.detect(mp_image)
@@ -274,7 +272,7 @@ def analyze_video(video_path: str, output_path: str | None = None) -> dict:
                 raw_foot_ys.append(None)
 
     cap.release()
-    n_frames = len(frames)
+    n_frames = len(raw_foot_ys)
 
     # ── Flight detection ──────────────────────────────────────────────────────
     smoothed = smooth_series(raw_foot_ys, window=5)
@@ -292,13 +290,19 @@ def analyze_video(video_path: str, output_path: str | None = None) -> dict:
         print("  Tips: ensure feet are fully visible; camera should be still.")
 
     # ── Pass 2: write annotated video ─────────────────────────────────────────
+    # Re-open the source video so we never hold all frames in RAM simultaneously.
     print("\nPass 2/2  —  writing annotated video…")
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     out    = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
-    for i, frame in enumerate(frames):
+    cap2 = cv2.VideoCapture(video_path)
+    i = 0
+    while cap2.isOpened():
+        ret, frame = cap2.read()
+        if not ret:
+            break
         img     = frame.copy()
-        lm_data = raw_lm[i]
+        lm_data = raw_lm[i] if i < len(raw_lm) else None
 
         # Phase + box colour
         if t0 is not None:
@@ -358,6 +362,9 @@ def analyze_video(video_path: str, output_path: str | None = None) -> dict:
         if done % 30 == 0 or done == n_frames:
             print(f"  {done}/{n_frames} frames ({done/n_frames*100:.0f}%)", end="\r")
 
+        i += 1
+
+    cap2.release()
     out.release()
     print(f"\nAnnotated video -> {output_path}")
 
