@@ -1,0 +1,20 @@
+# MediaPipe model — auto-downloaded on first run (~8 MB)
+pose_landmarker_full.task
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temp upload/output files from web app
+*.tmp

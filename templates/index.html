@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CMJ Jump Analyzer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f0f14;
+      color: #e8e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 48px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    header h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    header p {
+      margin-top: 6px;
+      color: #888;
+      font-size: 0.95rem;
+    }
+
+    .card {
+      background: #1a1a24;
+      border: 1px solid #2a2a3a;
+      border-radius: 16px;
+      padding: 28px 24px;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    /* ── Upload zone ── */
+    .upload-zone {
+      border: 2px dashed #3a3a52;
+      border-radius: 12px;
+      padding: 36px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: #6c6cff;
+      background: #1e1e30;
+    }
+    .upload-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .upload-icon {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+    }
+    .upload-label {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #c8c8e8;
+    }
+    .upload-sub {
+      margin-top: 6px;
+      font-size: 0.82rem;
+      color: #666;
+    }
+    .file-chosen {
+      margin-top: 14px;
+      font-size: 0.88rem;
+      color: #6c6cff;
+      font-weight: 500;
+      min-height: 1.2em;
+    }
+
+    /* ── Submit button ── */
+    .btn {
+      display: block;
+      width: 100%;
+      margin-top: 20px;
+      padding: 16px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      background: #5a5aff;
+      color: #fff;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn:hover   { background: #4848e0; }
+    .btn:active  { transform: scale(0.98); }
+    .btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+    /* ── Error banner ── */
+    .error-box {
+      background: #2a0f0f;
+      border: 1px solid #6b2222;
+      border-radius: 10px;
+      padding: 14px 16px;
+      color: #f88;
+      font-size: 0.9rem;
+      margin-bottom: 20px;
+    }
+
+    /* ── Results ── */
+    .result-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .result-header .label {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #888;
+    }
+    .result-header .height {
+      font-size: 4rem;
+      font-weight: 800;
+      color: #7cffb2;
+      line-height: 1.1;
+      margin-top: 4px;
+    }
+    .result-header .unit {
+      font-size: 1.6rem;
+      font-weight: 400;
+      color: #5ce890;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat {
+      background: #111120;
+      border: 1px solid #2a2a3a;
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .stat .s-label { font-size: 0.75rem; color: #666; text-transform: uppercase; letter-spacing: 0.06em; }
+    .stat .s-value { font-size: 1.4rem; font-weight: 700; margin-top: 4px; }
+
+    .btn-download {
+      background: #1a4a2a;
+      border: 1px solid #2e7a46;
+      color: #7cffb2;
+    }
+    .btn-download:hover { background: #1e5a32; }
+
+    .btn-again {
+      background: transparent;
+      border: 1px solid #3a3a52;
+      color: #aaa;
+      margin-top: 12px;
+    }
+    .btn-again:hover { background: #1e1e2e; color: #ddd; }
+
+    /* ── Spinner overlay ── */
+    #spinner {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.78);
+      z-index: 999;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 20px;
+    }
+    #spinner.active { display: flex; }
+    .spinner-ring {
+      width: 64px; height: 64px;
+      border: 6px solid #2a2a4a;
+      border-top-color: #6c6cff;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner-text { font-size: 1.1rem; color: #c8c8e8; }
+    .spinner-sub  { font-size: 0.85rem; color: #666; }
+  </style>
+</head>
+<body>
+
+<!-- Spinner overlay (shown while form is submitting) -->
+<div id="spinner">
+  <div class="spinner-ring"></div>
+  <div class="spinner-text">Analyzing jump…</div>
+  <div class="spinner-sub">This usually takes 30–90 seconds.<br>Please keep this page open.</div>
+</div>
+
+<header>
+  <h1>CMJ Jump Analyzer</h1>
+  <p>Upload a side-view jump video &mdash; get the height instantly.</p>
+</header>
+
+<div class="card">
+
+  {% if error %}
+  <div class="error-box">
+    <strong>Error:</strong> {{ error }}
+  </div>
+  {% endif %}
+
+  {% if result %}
+  <!-- ── Results view ── -->
+  <div class="result-header">
+    <div class="label">Jump Height</div>
+    {% if result.jump_height_in > 0 %}
+      <div class="height">{{ "%.1f"|format(result.jump_height_in) }}<span class="unit"> in</span></div>
+    {% else %}
+      <div class="height" style="color:#f88;font-size:2rem;">No jump detected</div>
+    {% endif %}
+  </div>
+
+  {% if result.jump_height_in > 0 %}
+  <div class="stats">
+    <div class="stat">
+      <div class="s-label">Flight Time</div>
+      <div class="s-value">{{ "%.3f"|format(result.flight_time_s) }}<span style="font-size:0.9rem;color:#888"> s</span></div>
+    </div>
+    <div class="stat">
+      <div class="s-label">Method</div>
+      <div class="s-value" style="font-size:1rem;color:#888">Flight time</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if token %}
+  <a href="/file/{{ token }}" style="text-decoration:none;">
+    <button class="btn btn-download">⬇ Download annotated video</button>
+  </a>
+  {% endif %}
+
+  <a href="/" style="text-decoration:none;">
+    <button class="btn btn-again">Analyze another video</button>
+  </a>
+
+  {% else %}
+  <!-- ── Upload view ── -->
+  <form id="upload-form" action="/analyze" method="post" enctype="multipart/form-data">
+    <div class="upload-zone" id="drop-zone">
+      <input type="file" name="video" id="video-input"
+             accept="video/*,.mov,.mp4,.avi,.mkv,.m4v" required />
+      <div class="upload-icon">🎬</div>
+      <div class="upload-label">Tap to select video</div>
+      <div class="upload-sub">MOV, MP4, AVI &bull; up to 500 MB</div>
+      <div class="file-chosen" id="file-name"></div>
+    </div>
+
+    <button class="btn" id="submit-btn" type="submit" disabled>Analyze Jump</button>
+  </form>
+  {% endif %}
+
+</div>
+
+<script>
+  const input     = document.getElementById("video-input");
+  const fileLabel = document.getElementById("file-name");
+  const submitBtn = document.getElementById("submit-btn");
+  const form      = document.getElementById("upload-form");
+  const spinner   = document.getElementById("spinner");
+  const dropZone  = document.getElementById("drop-zone");
+
+  if (input) {
+    input.addEventListener("change", () => {
+      const f = input.files[0];
+      if (f) {
+        fileLabel.textContent = f.name;
+        submitBtn.disabled = false;
+      }
+    });
+  }
+
+  if (form) {
+    form.addEventListener("submit", () => {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Uploading…";
+      spinner.classList.add("active");
+    });
+  }
+
+  // Drag-and-drop highlight
+  if (dropZone) {
+    ["dragenter","dragover"].forEach(e =>
+      dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add("drag-over"); }));
+    ["dragleave","drop"].forEach(e =>
+      dropZone.addEventListener(e, () => dropZone.classList.remove("drag-over")));
+  }
+</script>
+</body>
+</html>
