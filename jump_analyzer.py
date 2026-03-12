@@ -359,7 +359,7 @@ def analyze_video(video_path: str, output_path: str | None = None) -> dict:
             print(f"  {done}/{n_frames} frames ({done/n_frames*100:.0f}%)", end="\r")
 
     out.release()
-    print(f"\nAnnotated video → {output_path}")
+    print(f"\nAnnotated video -> {output_path}")
 
     # ── Write results .txt ─────────────────────────────────────────────────────
     with open(results_txt, "w") as f:
@@ -379,7 +379,7 @@ def analyze_video(video_path: str, output_path: str | None = None) -> dict:
         f.write(f"Total frames: {n_frames}\n")
         f.write(f"Output video: {Path(output_path).name}\n")
 
-    print(f"Results txt   → {results_txt}")
+    print(f"Results txt   -> {results_txt}")
 
     return {
         "jump_height_in": jump_height_in,
