@@ -1,10 +1,6 @@
 run = "pip install -r requirements.txt -q && python webapp.py"
 entrypoint = "webapp.py"
-modules = ["python-3.11"]
-
-[nix]
-channel = "stable-23_11"
 
 [[ports]]
-localPort = 5000
+localPort = 8080
 externalPort = 80
