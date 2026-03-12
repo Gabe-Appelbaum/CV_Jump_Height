@@ -170,6 +170,39 @@
     }
     .btn-again:hover { background: #1e1e2e; color: #ddd; }
 
+    /* ── Tab bar ── */
+    .tab-bar { display: flex; gap: 8px; margin-bottom: 20px; }
+    .tab-btn {
+      flex: 1; padding: 10px; border-radius: 8px; background: transparent;
+      color: #888; cursor: pointer; border: 1px solid #2a2a3a; font-size: 0.95rem;
+      font-weight: 600; transition: background 0.2s, color 0.2s, border-color 0.2s;
+    }
+    .tab-btn.active { background: #5a5aff; color: #fff; border-color: #5a5aff; }
+    .tab-btn:hover:not(.active) { background: #1e1e2e; color: #ccc; }
+
+    /* ── Record panel ── */
+    #preview-video {
+      width: 100%; border-radius: 10px; background: #000;
+      max-height: 280px; object-fit: cover; display: block;
+    }
+    .record-controls { display: flex; gap: 10px; margin-top: 14px; }
+    .record-controls .btn { margin-top: 0; }
+    .btn-stop { background: #8b2222; }
+    .btn-stop:hover { background: #a02828; }
+    #replay-section { margin-top: 16px; display: none; }
+    #replay-section p { font-size: 0.85rem; color: #888; margin-bottom: 8px; }
+    #replay-video {
+      width: 100%; border-radius: 10px; max-height: 280px;
+      object-fit: cover; display: block;
+    }
+    #record-error { display: none; margin-bottom: 14px; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .recording-indicator {
+      display: inline-block; width: 10px; height: 10px;
+      border-radius: 50%; background: #f55; margin-right: 6px;
+      animation: pulse 1s infinite; vertical-align: middle;
+    }
+
     /* ── Spinner overlay ── */
     #spinner {
       display: none;
@@ -253,19 +286,41 @@
   </a>
 
   {% else %}
-  <!-- ── Upload view ── -->
-  <form id="upload-form" action="/analyze" method="post" enctype="multipart/form-data">
-    <div class="upload-zone" id="drop-zone">
-      <input type="file" name="video" id="video-input"
-             accept="video/*,.mov,.mp4,.avi,.mkv,.m4v" required />
-      <div class="upload-icon">🎬</div>
-      <div class="upload-label">Tap to select video</div>
-      <div class="upload-sub">MOV, MP4, AVI &bull; up to 500 MB</div>
-      <div class="file-chosen" id="file-name"></div>
-    </div>
+  <!-- ── Tab bar ── -->
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-upload" type="button">Upload Video</button>
+    <button class="tab-btn"        id="tab-record" type="button">Record Video</button>
+  </div>
 
-    <button class="btn" id="submit-btn" type="submit" disabled>Analyze Jump</button>
-  </form>
+  <!-- ── Upload panel ── -->
+  <div id="panel-upload">
+    <form id="upload-form" action="/analyze" method="post" enctype="multipart/form-data">
+      <div class="upload-zone" id="drop-zone">
+        <input type="file" name="video" id="video-input"
+               accept="video/*,.mov,.mp4,.avi,.mkv,.m4v" required />
+        <div class="upload-icon">🎬</div>
+        <div class="upload-label">Tap to select video</div>
+        <div class="upload-sub">MOV, MP4, AVI &bull; up to 500 MB</div>
+        <div class="file-chosen" id="file-name"></div>
+      </div>
+      <button class="btn" id="submit-btn" type="submit" disabled>Analyze Jump</button>
+    </form>
+  </div>
+
+  <!-- ── Record panel ── -->
+  <div id="panel-record" style="display:none">
+    <div id="record-error" class="error-box"></div>
+    <video id="preview-video" muted playsinline autoplay></video>
+    <div class="record-controls">
+      <button class="btn" id="btn-start" type="button">Start Recording</button>
+      <button class="btn btn-stop" id="btn-stop" type="button" disabled>Stop</button>
+    </div>
+    <div id="replay-section">
+      <p>Review your clip, then analyze:</p>
+      <video id="replay-video" controls playsinline></video>
+      <button class="btn" id="btn-analyze" type="button" disabled>Analyze Recording</button>
+    </div>
+  </div>
   {% endif %}
 
 </div>
@@ -302,6 +357,111 @@
       dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add("drag-over"); }));
     ["dragleave","drop"].forEach(e =>
       dropZone.addEventListener(e, () => dropZone.classList.remove("drag-over")));
+  }
+
+  // ── Tab switching ──
+  const tabUpload   = document.getElementById("tab-upload");
+  const tabRecord   = document.getElementById("tab-record");
+  const panelUpload = document.getElementById("panel-upload");
+  const panelRecord = document.getElementById("panel-record");
+
+  let stream = null;
+
+  if (tabUpload && tabRecord) {
+    tabUpload.addEventListener("click", () => switchTab("upload"));
+    tabRecord.addEventListener("click",  () => switchTab("record"));
+  }
+
+  function switchTab(which) {
+    panelUpload.style.display = which === "upload" ? "block" : "none";
+    panelRecord.style.display = which === "record" ? "block" : "none";
+    tabUpload.classList.toggle("active", which === "upload");
+    tabRecord.classList.toggle("active", which === "record");
+    if (which === "record" && !stream) initCamera();
+  }
+
+  // ── Camera init ──
+  async function initCamera() {
+    const errEl = document.getElementById("record-error");
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(
+        { video: { facingMode: { ideal: "environment" } }, audio: false }
+      );
+      document.getElementById("preview-video").srcObject = stream;
+    } catch (e) {
+      errEl.textContent = "Camera access denied: " + e.message;
+      errEl.style.display = "block";
+    }
+  }
+
+  // ── MediaRecorder ──
+  const btnStart      = document.getElementById("btn-start");
+  const btnStop       = document.getElementById("btn-stop");
+  const replaySection = document.getElementById("replay-section");
+  const replayVideo   = document.getElementById("replay-video");
+  const btnAnalyze    = document.getElementById("btn-analyze");
+
+  let mediaRecorder = null, recordedChunks = [], recordedBlob = null;
+
+  function getSupportedMimeType() {
+    for (const t of ["video/mp4", "video/webm;codecs=vp9", "video/webm"])
+      if (MediaRecorder.isTypeSupported(t)) return t;
+    return "";
+  }
+
+  if (btnStart) {
+    btnStart.addEventListener("click", () => {
+      recordedChunks = []; recordedBlob = null;
+      replaySection.style.display = "none";
+      btnAnalyze.disabled = true;
+
+      const mimeType = getSupportedMimeType();
+      mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+      mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = () => {
+        recordedBlob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || "video/webm" });
+        replayVideo.src = URL.createObjectURL(recordedBlob);
+        replaySection.style.display = "block";
+        btnAnalyze.disabled = false;
+      };
+      mediaRecorder.start();
+      btnStart.disabled = true;
+      btnStart.innerHTML = '<span class="recording-indicator"></span>Recording…';
+      btnStop.disabled = false;
+    });
+
+    btnStop.addEventListener("click", () => {
+      mediaRecorder.stop();
+      btnStop.disabled = true;
+      btnStart.disabled = false;
+      btnStart.textContent = "Start Recording";
+    });
+  }
+
+  // ── Submit recording via fetch ──
+  if (btnAnalyze) {
+    btnAnalyze.addEventListener("click", async () => {
+      if (!recordedBlob) return;
+      const ext = recordedBlob.type.includes("mp4") ? "mp4" : "webm";
+      const fd  = new FormData();
+      fd.append("video", recordedBlob, "recording." + ext);
+
+      spinner.classList.add("active");
+      btnAnalyze.disabled = true;
+
+      try {
+        const res  = await fetch("/analyze", { method: "POST", body: fd });
+        if (!res.ok) throw new Error("Server error " + res.status);
+        const html = await res.text();
+        const doc  = new DOMParser().parseFromString(html, "text/html");
+        document.body.innerHTML = doc.body.innerHTML;
+      } catch (e) {
+        spinner.classList.remove("active");
+        btnAnalyze.disabled = false;
+        const errEl = document.getElementById("record-error");
+        if (errEl) { errEl.textContent = "Upload failed: " + e.message; errEl.style.display = "block"; }
+      }
+    });
   }
 </script>
 </body>
