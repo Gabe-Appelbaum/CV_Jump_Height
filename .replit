@@ -1,4 +1,4 @@
-run = "uv run webapp.py"
+run = "UV_PROJECT_ENVIRONMENT=/tmp/cmj-venv uv run webapp.py"
 entrypoint = "webapp.py"
 
 [[ports]]
