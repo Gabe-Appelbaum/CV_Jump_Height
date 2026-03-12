@@ -1,5 +1,17 @@
 # CV-Based Jump Height Analyzer
 
+## General Instructions
+
+- Always think about what the simplest, least invasive way to complete a task is. Avoid scope creep. If implementing a feature, don't refactor unrelated code along the way.
+- Before starting any non-trivial task, ask clarifying questions to understand the requirements fully. Don't make assumptions — interview the user about their intent.
+- When given a task that involves multiple steps or architectural decisions, enter plan mode first. Write out the plan, get approval, then implement.
+- Use the TodoWrite tool to track multi-step tasks. Mark items complete as you finish them, not in batches.
+- After completing a task, summarize what was done concisely. Don't over-explain.
+- Never modify files outside the scope of the current task. If you notice something that could be improved elsewhere, mention it but don't act on it unless asked.
+- Prefer editing existing files to creating new ones. Only create new files when truly necessary.
+- When making a change that touches multiple files, read all the relevant files first before making any edits.
+- Do not push to remote repositories, deploy, or run destructive commands without explicit confirmation from the user.
+
 ## Goal
 Analyze iPhone video of a countermovement jump (CMJ) filmed from a **side view** and output:
 - Jump height in **inches** (via the flight-time physics method)

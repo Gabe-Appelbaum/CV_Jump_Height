@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: transparent;
+      color: #e8e8f0;
+      padding: 8px 0;
+    }
+
+    #preview {
+      width: 100%;
+      max-height: 320px;
+      background: #111;
+      border-radius: 10px;
+      display: block;
+      object-fit: cover;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    button {
+      flex: 1;
+      padding: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    #startBtn  { background: #5a5aff; color: #fff; }
+    #startBtn:hover:not(:disabled)  { background: #4848e0; }
+    #stopBtn   { background: #c0392b; color: #fff; }
+    #stopBtn:hover:not(:disabled)   { background: #a93226; }
+
+    #status {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: #888;
+      min-height: 1.2em;
+      text-align: center;
+    }
+    #status.recording { color: #ff6b6b; font-weight: 600; }
+    #status.done      { color: #7cffb2; }
+  </style>
+</head>
+<body>
+
+<video id="preview" autoplay muted playsinline></video>
+
+<div class="controls">
+  <button id="startBtn">Start Recording</button>
+  <button id="stopBtn" disabled>Stop</button>
+</div>
+
+<p id="status">Camera will start when you click Start Recording.</p>
+
+<script src="https://unpkg.com/streamlit-component-lib@2.0.0/dist/index.js"></script>
+<script>
+  const preview  = document.getElementById("preview");
+  const startBtn = document.getElementById("startBtn");
+  const stopBtn  = document.getElementById("stopBtn");
+  const status   = document.getElementById("status");
+
+  let mediaRecorder = null;
+  let chunks = [];
+  let stream = null;
+
+  // Notify Streamlit of initial (null) value so the component renders at the
+  // right height immediately.
+  Streamlit.setComponentValue(null);
+  Streamlit.setFrameHeight(document.body.scrollHeight);
+
+  startBtn.addEventListener("click", async () => {
+    chunks = [];
+    status.textContent = "Requesting camera…";
+    status.className = "";
+
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+    } catch (err) {
+      // Fall back to any camera if environment-facing not available
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      } catch (err2) {
+        status.textContent = "Camera access denied: " + err2.message;
+        return;
+      }
+    }
+
+    preview.srcObject = stream;
+
+    // Pick the best supported MIME type
+    const mimeType = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"]
+      .find(m => MediaRecorder.isTypeSupported(m)) || "";
+
+    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+
+    mediaRecorder.ondataavailable = e => {
+      if (e.data && e.data.size > 0) chunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(chunks, { type: mediaRecorder.mimeType || "video/webm" });
+      status.textContent = "Processing… please wait.";
+      status.className = "";
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        // reader.result is "data:<mime>;base64,<data>"
+        const base64 = reader.result.split(",")[1];
+        Streamlit.setComponentValue({ data: base64, mime: blob.type });
+        status.textContent = "Done — analyzing…";
+        status.className = "done";
+      };
+      reader.readAsDataURL(blob);
+
+      // Stop all camera tracks
+      stream.getTracks().forEach(t => t.stop());
+      preview.srcObject = null;
+    };
+
+    mediaRecorder.start(500); // collect chunks every 500 ms
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    status.textContent = "Recording…";
+    status.className = "recording";
+    Streamlit.setFrameHeight(document.body.scrollHeight);
+  });
+
+  stopBtn.addEventListener("click", () => {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop();
+    }
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+  });
+</script>
+</body>
+</html>

@@ -5,6 +5,7 @@ pip install -r requirements.txt
 echo.
 echo ============================================
 echo  Installation complete!
-echo  Run:  python jump_analyzer.py
+echo  Web app: streamlit run app.py
+echo  CLI:     python jump_analyzer.py
 echo ============================================
 pause
