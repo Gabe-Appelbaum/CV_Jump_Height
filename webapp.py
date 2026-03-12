@@ -71,7 +71,7 @@ def download(token):
 
 if __name__ == "__main__":
     ensure_model()
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 8080))
     print(f"\n  CMJ Web App running on http://localhost:{port}")
     print("  For phone access, run:  ngrok http " + str(port))
     print("  Press Ctrl+C to stop.\n")
