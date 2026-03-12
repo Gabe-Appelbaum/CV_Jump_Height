@@ -74,5 +74,20 @@ cv based jump height/
 - Optimized for side-view footage
 - If athlete bends knees significantly before heels touch on landing, height may be slightly
   overestimated (flight-time method assumes symmetric jump)
-- iPhone slow-motion VFR clips: FPS is read from video metadata; may be inaccurate for
-  variable-frame-rate MOV files
+- iPhone slow-motion VFR clips: per-frame timestamps (`CAP_PROP_POS_MSEC`) are used instead
+  of nominal FPS to get accurate flight time
+
+## Streamlit Cloud Deployment Notes
+
+Environment: **Debian Trixie, Python 3.14**. Hard-won lessons:
+
+- **Dockerfile**: free tier ignores it entirely — always uses its own environment
+- **`setup.sh`**: not a documented/reliable feature; do not rely on it
+- **`sudo` at runtime**: fails silently during app execution; only works during build phase
+- **`libglib2.0-0`** in packages.txt: pulls in old Bullseye version → dependency conflict
+- **`libglib2.0-0t64`**: the correct Debian Trixie package name (t64 = 64-bit time_t ABI transition)
+- **`libgthread-2.0.so.0`**: merged into `libglib-2.0.so.0` in GLib 2.68+; doesn't exist on Trixie
+
+**Working fix** (in place): `packages.txt` installs `libglib2.0-0t64`. `app.py` creates a
+`/tmp/libgthread-2.0.so.0` symlink and prepends `/tmp` to `LD_LIBRARY_PATH` before `import cv2`.
+This runs in the app process (no sudo needed) and is the only mechanism that reliably works.
